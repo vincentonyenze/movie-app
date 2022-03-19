@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Movie Discovery</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header__inner container">
+      <a href="./" class="logo">🎬 <span>Movie</span>Discovery</a>
+
+      <!-- Two views of the same page: browse movies, or see your favourites -->
+      <nav class="tabs" aria-label="Views">
+        <button type="button" class="tabs__btn" data-view="discover" aria-pressed="true">Discover</button>
+        <button type="button" class="tabs__btn" data-view="favourites" aria-pressed="false">
+          ❤️ Favourites <span id="fav-count" class="tabs__count">0</span>
+        </button>
+      </nav>
+
+      <form id="search-form" class="search" role="search">
+        <label for="search-input" class="visually-hidden">Search movies</label>
+        <input type="search" id="search-input" class="search__input"
+               placeholder="Search movies…" autocomplete="off">
+      </form>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Filters: genre chips are added by JavaScript from the API -->
+    <section class="toolbar" aria-label="Filters">
+      <div id="genre-list" class="genres" role="group" aria-label="Genres"></div>
+
+      <div class="sort">
+        <label for="sort-select">Sort by</label>
+        <select id="sort-select" class="sort__select">
+          <option value="popularity.desc">Most popular</option>
+          <option value="vote_average.desc">Highest rated</option>
+          <option value="primary_release_date.desc">Newest</option>
+          <option value="primary_release_date.asc">Oldest</option>
+        </select>
+      </div>
+    </section>
+
+    <div class="results-header">
+      <h1 id="results-title" class="results-header__title">Popular movies</h1>
+      <p id="results-count" class="results-header__count" aria-live="polite"></p>
+    </div>
+
+    <!-- aria-busy tells screen readers the grid is loading -->
+    <ul id="movie-grid" class="movie-grid" aria-busy="false"></ul>
+
+    <!-- Empty and error messages (only one is shown at a time) -->
+    <div id="status" class="status" role="status" hidden>
+      <span id="status-icon" class="status__icon" aria-hidden="true"></span>
+      <p id="status-message" class="status__message"></p>
+      <button type="button" id="retry-btn" class="btn" hidden>Try again</button>
+    </div>
+
+    <div class="load-more">
+      <button type="button" id="load-more-btn" class="btn" hidden>Load more</button>
+    </div>
+  </main>
+
+  <footer class="site-footer container">
+    <p>
+      Movie data and images from <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB</a>.
+      This product uses the TMDB API but is not endorsed or certified by TMDB.
+    </p>
+  </footer>
+
+  <!-- One movie card. JavaScript copies this for every movie. -->
+  <template id="movie-card-template">
+    <li class="movie-card">
+      <button type="button" class="movie-card__open">
+        <img class="movie-card__poster" alt="" width="342" height="513">
+        <span class="movie-card__info">
+          <span class="movie-card__title"></span>
+          <span class="movie-card__meta">
+            <span class="movie-card__year"></span>
+            <span class="movie-card__rating"></span>
+          </span>
+        </span>
+      </button>
+      <button type="button" class="movie-card__fav" aria-pressed="false">
+        <span aria-hidden="true">♡</span>
+        <span class="visually-hidden">Add to favourites</span>
+      </button>
+    </li>
+  </template>
+
+  <!-- Movie details. <dialog> gives us Esc-to-close and focus handling for free. -->
+  <dialog id="details" class="details" aria-labelledby="details-title">
+    <button type="button" id="details-close" class="details__close" aria-label="Close">✕</button>
+
+    <div class="details__backdrop">
+      <img id="details-backdrop" alt="">
+    </div>
+
+    <div class="details__body">
+      <img id="details-poster" class="details__poster" alt="" width="185" height="278">
+
+      <div class="details__main">
+        <h2 id="details-title" class="details__title"></h2>
+        <p id="details-tagline" class="details__tagline"></p>
+        <p id="details-meta" class="details__meta"></p>
+        <ul id="details-genres" class="details__genres" aria-label="Genres"></ul>
+
+        <div class="details__actions">
+          <button type="button" id="details-fav" class="btn" aria-pressed="false">♡ Add to favourites</button>
+          <a id="details-trailer" class="btn btn--ghost" target="_blank" rel="noopener" hidden>▶ Watch trailer</a>
+        </div>
+
+        <h3 class="details__heading">Overview</h3>
+        <p id="details-overview" class="details__overview"></p>
+
+        <h3 class="details__heading">Top cast</h3>
+        <ul id="details-cast" class="details__cast"></ul>
+      </div>
+    </div>
+
+    <!-- Shown while the details are loading or if they fail -->
+    <p id="details-status" class="details__status" role="status" hidden></p>
+  </dialog>
+</body>
+</html>
