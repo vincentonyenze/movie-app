@@ -342,3 +342,177 @@ a {
   font-size: 0.8rem;
   text-align: center;
 }
+
+/* ===== Movie grid ===== */
+/* auto-fill: as many 160px+ columns as fit, then stretch them to fill the row.
+   No media queries needed: 2 columns on a phone, 6–7 on a wide screen. */
+.movie-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1.5rem 1rem;
+}
+
+/* ===== Movie card ===== */
+.movie-card {
+  position: relative; /* the ❤️ button is placed relative to the card */
+}
+
+.movie-card__open {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+}
+
+.movie-card__poster {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 3; /* every poster gets the same shape, even before it loads */
+  object-fit: cover;
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.movie-card__open:hover .movie-card__poster,
+.movie-card__open:focus-visible .movie-card__poster {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6);
+}
+
+/* The focus ring goes around the poster rather than the whole button */
+.movie-card__open:focus-visible {
+  outline: none;
+}
+
+.movie-card__open:focus-visible .movie-card__poster {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
+/* No poster from the API: show a placeholder of the same size instead */
+.movie-card--no-poster .movie-card__poster {
+  display: none;
+}
+
+.movie-card--no-poster .movie-card__open::before {
+  content: "🎬";
+  display: grid;
+  place-items: center;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius);
+  background: linear-gradient(160deg, var(--color-surface-hover), var(--color-surface));
+  font-size: 3rem;
+}
+
+.movie-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.2rem 0;
+}
+
+/* Long titles stop after 2 lines with "…" so every card lines up */
+.movie-card__title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.movie-card__meta {
+  display: flex;
+  justify-content: space-between;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+.movie-card__rating {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* ===== Favourite button on a card ===== */
+.movie-card__fav {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 17, 21, 0.75);
+  color: var(--color-text);
+  font-size: 1.15rem;
+  line-height: 1;
+  transition: transform 0.15s, background-color 0.15s;
+}
+
+.movie-card__fav:hover {
+  transform: scale(1.1);
+  background: rgba(15, 17, 21, 0.95);
+}
+
+.movie-card__fav[aria-pressed="true"] {
+  color: var(--color-fav);
+}
+
+/* ===== Skeleton cards (shown while movies load) ===== */
+/* Grey shapes the size of real cards, so the page doesn't jump when data arrives */
+.skeleton {
+  border-radius: var(--radius-small);
+  background: linear-gradient(
+    90deg,
+    var(--color-surface) 25%,
+    var(--color-surface-hover) 50%,
+    var(--color-surface) 75%
+  );
+  background-size: 200% 100%; /* twice as wide as the box, so it can slide */
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton--poster {
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius);
+}
+
+.skeleton--text {
+  height: 1rem;
+  margin-top: 0.6rem;
+}
+
+.skeleton--short {
+  width: 50%;
+  margin-top: 0.4rem;
+}
+
+/* Slide the lighter band from right to left, forever */
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+/* People who turn off animations in their system settings get still shapes */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+
+  .movie-card__poster,
+  .movie-card__fav {
+    transition: none;
+  }
+}
