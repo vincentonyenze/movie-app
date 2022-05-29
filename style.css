@@ -516,3 +516,279 @@ a {
     transition: none;
   }
 }
+
+/* ===== Details dialog ===== */
+.details {
+  width: min(900px, 100% - 2rem);
+  max-height: calc(100% - 2rem);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+  overflow-y: auto;
+}
+
+/* The dark layer behind an open dialog (only exists with showModal()) */
+.details::backdrop {
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+}
+
+.details[open] {
+  animation: dialog-in 0.2s ease-out;
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+}
+
+/* Stop the page behind the dialog from scrolling.
+   :has() means "a body that contains an open dialog". */
+body:has(dialog[open]) {
+  overflow: hidden;
+}
+
+.details__close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 17, 21, 0.8);
+  font-size: 1.1rem;
+}
+
+.details__close:hover {
+  background: var(--color-bg);
+}
+
+/* Wide still from the movie, fading into the dialog at the bottom */
+.details__backdrop {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  max-height: 360px;
+  width: 100%;
+  background: var(--color-surface-hover);
+}
+
+.details__backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.details__backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0; /* shorthand for top, right, bottom and left: 0 */
+  background: linear-gradient(to bottom, transparent 40%, var(--color-surface));
+}
+
+.details__body {
+  display: grid;
+  grid-template-columns: 185px 1fr;
+  gap: 1.5rem;
+  padding: 0 1.5rem 1.5rem;
+}
+
+/* Pulled up so the poster overlaps the backdrop image */
+.details__poster {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  margin-top: -100px;
+  position: relative;
+  border-radius: var(--radius);
+  background: var(--color-surface-hover);
+  box-shadow: var(--shadow);
+}
+
+.details__title {
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+
+.details__tagline {
+  margin-top: 0.25rem;
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+.details__meta {
+  margin-top: 0.5rem;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.details__genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.details__genres li {
+  padding: 0.2rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+}
+
+.details__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+#details-fav[aria-pressed="true"] {
+  background: var(--color-fav);
+  color: #fff;
+}
+
+.details__heading {
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}
+
+.details__overview {
+  color: #cfd3da;
+  max-width: 65ch; /* long lines are hard to read */
+}
+
+/* Cast: one row you can scroll sideways, each card snapping into place */
+.details__cast {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  scroll-snap-type: x mandatory;
+}
+
+.cast-member {
+  flex: 0 0 96px;
+  scroll-snap-align: start;
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
+.cast-member__photo {
+  width: 96px;
+  height: 128px;
+  margin-bottom: 0.4rem;
+  object-fit: cover;
+  border-radius: var(--radius-small);
+  background: var(--color-surface-hover);
+}
+
+.cast-member__name {
+  display: block;
+  font-weight: 600;
+}
+
+.cast-member__role {
+  display: block;
+  color: var(--color-muted);
+}
+
+.details__status {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 700px) {
+  /* Search gets its own full-width row under the logo and tabs */
+  .search {
+    order: 1;
+    flex-basis: 100%;
+    max-width: none;
+    margin-left: 0;
+  }
+
+  /* Genres: one sideways-scrolling row instead of many wrapped lines */
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .genres {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scrollbar-width: none; /* hide the scrollbar, swiping still works */
+  }
+
+  .genre-chip {
+    flex-shrink: 0;
+  }
+
+  .movie-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 1.25rem 0.75rem;
+  }
+
+  /* The dialog fills the screen on phones */
+  .details {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+  }
+
+  .details__body {
+    grid-template-columns: 110px 1fr;
+    gap: 1rem;
+    padding: 0 1rem 1.5rem;
+  }
+
+  /* Poster on the left, next to the title, tagline, meta and genres */
+  .details__poster {
+    grid-row: span 4;
+    align-self: start;
+    margin-top: -60px;
+  }
+
+  .details__title {
+    font-size: 1.35rem;
+  }
+
+  /* Overview and cast use the full width below the poster */
+  .details__main {
+    display: contents;
+  }
+
+  .details__title,
+  .details__tagline,
+  .details__meta,
+  .details__genres {
+    grid-column: 2;
+  }
+
+  .details__actions,
+  .details__heading,
+  .details__overview,
+  .details__cast {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .details[open] {
+    animation: none;
+  }
+}
