@@ -1,16 +1,17 @@
 // Entry point: the only script loaded by index.html.
+// It connects the pieces: user events -> API -> UI.
 import { getPopularMovies } from "./api.js";
+import { renderMovies, renderResultsHeader } from "./ui.js";
 
-// Temporary test for Step 6: check the API works before building the UI.
-// Open DevTools (F12) -> Console to see the result.
-async function testApi() {
+async function loadPopularMovies() {
   try {
     const { movies, totalResults } = await getPopularMovies();
-    console.log(`✅ TMDB works! ${totalResults} popular movies. First page:`);
-    console.table(movies.map(({ title, year, rating }) => ({ title, year, rating })));
+    renderResultsHeader("Popular movies", totalResults);
+    renderMovies(movies);
   } catch (error) {
-    console.error(`❌ ${error.name}: ${error.message}`);
+    // Proper on-screen error messages come in the next step
+    console.error(`${error.name}: ${error.message}`);
   }
 }
 
-testApi();
+loadPopularMovies();
