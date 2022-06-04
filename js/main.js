@@ -1,17 +1,33 @@
 // Entry point: the only script loaded by index.html.
 // It connects the pieces: user events -> API -> UI.
+import { elements } from "./dom.js";
 import { getPopularMovies } from "./api.js";
-import { renderMovies, renderResultsHeader } from "./ui.js";
+import {
+  renderMovies,
+  renderResultsHeader,
+  renderLoading,
+  renderEmpty,
+  renderError,
+} from "./ui.js";
 
+// Every load goes through the same steps:
+// show skeletons -> fetch -> show movies, "nothing found" or an error
 async function loadPopularMovies() {
+  renderLoading();
   try {
     const { movies, totalResults } = await getPopularMovies();
     renderResultsHeader("Popular movies", totalResults);
-    renderMovies(movies);
+    if (movies.length === 0) {
+      renderEmpty("No movies to show right now.");
+    } else {
+      renderMovies(movies);
+    }
   } catch (error) {
-    // Proper on-screen error messages come in the next step
-    console.error(`${error.name}: ${error.message}`);
+    renderError(error);
   }
 }
+
+// "Try again" repeats the load that failed
+elements.retryBtn.addEventListener("click", loadPopularMovies);
 
 loadPopularMovies();
