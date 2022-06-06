@@ -134,3 +134,12 @@ export async function getPopularMovies(page = 1, signal) {
   const data = await tmdbFetch("/movie/popular", { page }, { signal });
   return toPage(data);
 }
+
+export async function searchMovies(query, page = 1, signal) {
+  const data = await tmdbFetch(
+    "/search/movie",
+    { query, page, include_adult: false },
+    { signal }
+  );
+  return toPage(data);
+}
