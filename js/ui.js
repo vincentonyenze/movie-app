@@ -128,6 +128,13 @@ export function renderSelectedGenre(genreId) {
   });
 }
 
+// TMDB's search can't sort, so the dropdown is switched off while searching
+export function renderSort(sortBy, isSearching) {
+  elements.sortSelect.value = sortBy;
+  elements.sortSelect.disabled = isSearching;
+  elements.sortSelect.title = isSearching ? "Sorting isn't available for search results" : "";
+}
+
 // The heading above the grid, e.g. "Popular movies" and "10,000 movies"
 export function renderResultsHeader(title, totalResults) {
   elements.resultsTitle.textContent = title;

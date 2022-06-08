@@ -130,11 +130,41 @@ function toPage(data) {
 }
 
 // ===== Endpoints =====
+// "2026-10-19": today's date in the format TMDB expects
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Sorting alone gives odd results. "Highest rated" is topped by films with
+// a single 10/10 vote, and "Newest" by films that haven't come out yet.
+// These extra filters keep each sort sensible.
+function filtersForSort(sortBy) {
+  switch (sortBy) {
+    case "vote_average.desc":
+      return { "vote_count.gte": 300 };
+    case "primary_release_date.desc":
+      return { "primary_release_date.lte": today(), "vote_count.gte": 20 };
+    case "primary_release_date.asc":
+      return { "vote_count.gte": 20 };
+    default:
+      return {};
+  }
+}
+
 // /discover can filter and sort, so it replaces /movie/popular:
 // "popular" is just discover sorted by popularity with no filters.
 // genreId: a TMDB genre id like 28 (Action), or null for every genre
-export async function discoverMovies({ genreId = null, page = 1 } = {}, signal) {
-  const params = { sort_by: "popularity.desc", include_adult: false, page };
+// sortBy: one of the <option> values in index.html
+export async function discoverMovies(
+  { genreId = null, sortBy = "popularity.desc", page = 1 } = {},
+  signal
+) {
+  const params = {
+    sort_by: sortBy,
+    include_adult: false,
+    page,
+    ...filtersForSort(sortBy),
+  };
   if (genreId !== null) params.with_genres = genreId;
 
   const data = await tmdbFetch("/discover/movie", params, { signal });

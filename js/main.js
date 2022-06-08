@@ -11,17 +11,27 @@ import {
   renderError,
   renderGenres,
   renderSelectedGenre,
+  renderSort,
 } from "./ui.js";
 
 // Wait this long after the last keystroke before searching
 const SEARCH_DELAY_MS = 400;
 
+// The start of the heading for each sort option: "Top rated Horror movies"
+const SORT_TITLES = {
+  "popularity.desc": "Popular",
+  "vote_average.desc": "Top rated",
+  "primary_release_date.desc": "Newest",
+  "primary_release_date.asc": "Oldest",
+};
+
 // What the user has asked to see. Every load reads from here.
-// Searching and genres don't mix: TMDB's search can't filter by genre,
-// so choosing one clears the other.
+// Searching doesn't mix with genres or sorting: TMDB's search can't
+// filter or sort, so a search clears the genre and ignores the sort.
 const state = {
   query: "", // "" means "not searching"
   genreId: null, // a TMDB genre id, or null for all genres
+  sortBy: "popularity.desc", // one of the <option> values in index.html
 };
 
 // [{ id: 28, name: "Action" }, ...], filled once at startup
@@ -33,7 +43,7 @@ let currentRequest = null;
 
 // ===== Loading =====
 // Fetch whatever the state asks for. There's only ONE load function: search,
-// genres (and soon sort and pages) just change the state and call it.
+// genres, sort (and soon pages) just change the state and call it.
 async function loadMovies() {
   // Cancel the previous request if it hasn't finished. Without this, a slow
   // answer for "bat" could arrive after "batman" and replace its results.
@@ -43,10 +53,10 @@ async function loadMovies() {
 
   renderLoading();
   try {
-    const { query, genreId } = state;
+    const { query, genreId, sortBy } = state;
     const { movies, totalResults } = query
       ? await searchMovies(query, 1, request.signal)
-      : await discoverMovies({ genreId }, request.signal);
+      : await discoverMovies({ genreId, sortBy }, request.signal);
 
     renderResultsHeader(getResultsTitle(), totalResults);
     if (movies.length === 0) {
@@ -63,11 +73,11 @@ async function loadMovies() {
   }
 }
 
-// "Results for “batman”", "Comedy movies" or "Popular movies"
+// "Results for “batman”", "Popular movies" or "Top rated Comedy movies"
 function getResultsTitle() {
   if (state.query) return `Results for “${state.query}”`;
   const genre = genres.find((g) => g.id === state.genreId);
-  return genre ? `${genre.name} movies` : "Popular movies";
+  return [SORT_TITLES[state.sortBy], genre?.name, "movies"].filter(Boolean).join(" ");
 }
 
 // The genre chips are a nice extra: if they fail to load, the movies
@@ -92,6 +102,7 @@ function search() {
     state.genreId = null;
     renderSelectedGenre(null);
   }
+  renderSort(state.sortBy, query !== "");
   loadMovies();
 }
 
@@ -117,6 +128,13 @@ function handleGenreClick(event) {
   state.query = "";
   elements.searchInput.value = "";
   renderSelectedGenre(genreId);
+  renderSort(state.sortBy, false);
+  loadMovies();
+}
+
+// ===== Sort =====
+function handleSortChange() {
+  state.sortBy = elements.sortSelect.value;
   loadMovies();
 }
 
@@ -124,12 +142,17 @@ function handleGenreClick(event) {
 elements.searchInput.addEventListener("input", searchSoon);
 elements.searchForm.addEventListener("submit", handleSearchSubmit);
 elements.genreList.addEventListener("click", handleGenreClick);
+elements.sortSelect.addEventListener("change", handleSortChange);
 // "Try again" repeats the load that failed, with the same state,
 // and fetches the genres too if they failed the first time
 elements.retryBtn.addEventListener("click", () => {
   if (genres.length === 0) loadGenres();
   loadMovies();
 });
+
+// Browsers sometimes keep a <select>'s old value after a refresh,
+// so make the page match the state before the first load
+renderSort(state.sortBy, false);
 
 // Both start at the same time; neither waits for the other
 loadGenres();
