@@ -12,6 +12,8 @@ import {
   renderGenres,
   renderSelectedGenre,
   renderSort,
+  appendMovies,
+  renderLoadMore,
 } from "./ui.js";
 
 // Wait this long after the last keystroke before searching
@@ -34,6 +36,14 @@ const state = {
   sortBy: "popularity.desc", // one of the <option> values in index.html
 };
 
+// What's on screen now: the movies so far, and how far through the pages we are.
+// This is the API's answer, kept separate from `state` (what the user asked for).
+const results = {
+  movies: [],
+  page: 0,
+  totalPages: 0,
+};
+
 // [{ id: 28, name: "Action" }, ...], filled once at startup
 let genres = [];
 
@@ -42,34 +52,78 @@ let genres = [];
 let currentRequest = null;
 
 // ===== Loading =====
-// Fetch whatever the state asks for. There's only ONE load function: search,
-// genres, sort (and soon pages) just change the state and call it.
-async function loadMovies() {
-  // Cancel the previous request if it hasn't finished. Without this, a slow
-  // answer for "bat" could arrive after "batman" and replace its results.
-  currentRequest?.abort();
-  const request = new AbortController();
-  currentRequest = request;
+// Ask the API for one page of whatever the state describes
+function fetchPage(page, signal) {
+  const { query, genreId, sortBy } = state;
+  return query
+    ? searchMovies(query, page, signal)
+    : discoverMovies({ genreId, sortBy, page }, signal);
+}
 
+// Cancel the previous request if it hasn't finished, and start tracking a
+// new one. Without this, a slow answer for "bat" could arrive after
+// "batman" and replace its results.
+function startRequest() {
+  currentRequest?.abort();
+  currentRequest = new AbortController();
+  return currentRequest;
+}
+
+function finishRequest(request) {
+  if (currentRequest === request) currentRequest = null;
+}
+
+// Start again from page 1. Search, genres and sort just change the state
+// and call this.
+async function loadMovies() {
+  const request = startRequest();
   renderLoading();
   try {
-    const { query, genreId, sortBy } = state;
-    const { movies, totalResults } = query
-      ? await searchMovies(query, 1, request.signal)
-      : await discoverMovies({ genreId, sortBy }, request.signal);
+    const { movies, page, totalPages, totalResults } = await fetchPage(1, request.signal);
+    Object.assign(results, { movies, page, totalPages });
 
     renderResultsHeader(getResultsTitle(), totalResults);
     if (movies.length === 0) {
-      renderEmpty(query ? `No movies match “${query}”.` : "No movies to show right now.");
+      renderEmpty(state.query ? `No movies match “${state.query}”.` : "No movies to show right now.");
     } else {
       renderMovies(movies);
+      renderLoadMore({ hasMore: page < totalPages });
     }
   } catch (error) {
     // We cancelled this one on purpose; the newer request will draw the page
     if (error.name === "AbortError") return;
     renderError(error);
   } finally {
-    if (currentRequest === request) currentRequest = null;
+    finishRequest(request);
+  }
+}
+
+// Add the next page under the movies already on screen
+async function loadMoreMovies() {
+  const request = startRequest();
+  renderLoadMore({ hasMore: true, isLoading: true });
+  try {
+    const { movies, page, totalPages } = await fetchPage(results.page + 1, request.signal);
+
+    // Popularity changes while you browse, so a movie can move from page 1
+    // to page 2 and come back twice. Skip the ones we already have.
+    const shownIds = new Set(results.movies.map((movie) => movie.id));
+    const newMovies = movies.filter((movie) => !shownIds.has(movie.id));
+
+    Object.assign(results, {
+      movies: [...results.movies, ...newMovies],
+      page,
+      totalPages,
+    });
+    appendMovies(newMovies);
+    renderLoadMore({ hasMore: page < totalPages });
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    // Keep the movies already on screen; just let the button try again
+    console.warn("Couldn't load more:", error.message);
+    renderLoadMore({ hasMore: true, failed: true });
+  } finally {
+    finishRequest(request);
   }
 }
 
@@ -143,6 +197,7 @@ elements.searchInput.addEventListener("input", searchSoon);
 elements.searchForm.addEventListener("submit", handleSearchSubmit);
 elements.genreList.addEventListener("click", handleGenreClick);
 elements.sortSelect.addEventListener("change", handleSortChange);
+elements.loadMoreBtn.addEventListener("click", loadMoreMovies);
 // "Try again" repeats the load that failed, with the same state,
 // and fetches the genres too if they failed the first time
 elements.retryBtn.addEventListener("click", () => {

@@ -40,6 +40,21 @@ export function renderMovies(movies) {
   hideStatus();
 }
 
+// Add movies to the end of the grid ("Load more"), keeping the ones there
+export function appendMovies(movies) {
+  elements.movieGrid.append(...movies.map(createMovieCard));
+}
+
+// hasMore: are there pages left? isLoading / failed change the button's text
+export function renderLoadMore({ hasMore, isLoading = false, failed = false }) {
+  const button = elements.loadMoreBtn;
+  button.hidden = !hasMore;
+  button.disabled = isLoading;
+  if (isLoading) button.textContent = "Loading…";
+  else if (failed) button.textContent = "Couldn't load more. Try again";
+  else button.textContent = "Load more";
+}
+
 // A grey card shape: poster, title line, shorter year line
 function createSkeletonCard() {
   const item = document.createElement("li");
@@ -60,6 +75,7 @@ export function renderLoading() {
   );
   elements.movieGrid.setAttribute("aria-busy", "true");
   elements.resultsCount.textContent = "Loading…";
+  elements.loadMoreBtn.hidden = true;
   hideStatus();
 }
 
@@ -72,6 +88,7 @@ function showStatus({ icon, message, canRetry = false }) {
   elements.statusMessage.textContent = message;
   elements.retryBtn.hidden = !canRetry;
   elements.status.hidden = false;
+  elements.loadMoreBtn.hidden = true;
 }
 
 function hideStatus() {
