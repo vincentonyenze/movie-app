@@ -130,9 +130,21 @@ function toPage(data) {
 }
 
 // ===== Endpoints =====
-export async function getPopularMovies(page = 1, signal) {
-  const data = await tmdbFetch("/movie/popular", { page }, { signal });
+// /discover can filter and sort, so it replaces /movie/popular:
+// "popular" is just discover sorted by popularity with no filters.
+// genreId: a TMDB genre id like 28 (Action), or null for every genre
+export async function discoverMovies({ genreId = null, page = 1 } = {}, signal) {
+  const params = { sort_by: "popularity.desc", include_adult: false, page };
+  if (genreId !== null) params.with_genres = genreId;
+
+  const data = await tmdbFetch("/discover/movie", params, { signal });
   return toPage(data);
+}
+
+// The list of genres, e.g. [{ id: 28, name: "Action" }, ...]
+export async function getGenres(signal) {
+  const data = await tmdbFetch("/genre/movie/list", {}, { signal });
+  return data.genres;
 }
 
 export async function searchMovies(query, page = 1, signal) {

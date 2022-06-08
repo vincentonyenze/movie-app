@@ -107,6 +107,27 @@ export function renderError(error) {
   });
 }
 
+// One chip per genre, plus "All" at the start (its id is "")
+export function renderGenres(genres) {
+  const chips = [{ id: "", name: "All" }, ...genres].map((genre) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "genre-chip";
+    chip.dataset.genreId = genre.id;
+    chip.textContent = genre.name;
+    return chip;
+  });
+  elements.genreList.replaceChildren(...chips);
+}
+
+// Mark which chip is selected (null = "All")
+export function renderSelectedGenre(genreId) {
+  const selected = String(genreId ?? ""); // dataset values are always strings
+  elements.genreList.querySelectorAll(".genre-chip").forEach((chip) => {
+    chip.setAttribute("aria-pressed", String(chip.dataset.genreId === selected));
+  });
+}
+
 // The heading above the grid, e.g. "Popular movies" and "10,000 movies"
 export function renderResultsHeader(title, totalResults) {
   elements.resultsTitle.textContent = title;
