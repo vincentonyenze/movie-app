@@ -1,7 +1,7 @@
 // Entry point: the only script loaded by index.html.
 // It connects the pieces: user events -> state -> API -> UI.
 import { elements } from "./dom.js";
-import { discoverMovies, searchMovies, getGenres } from "./api.js";
+import { discoverMovies, searchMovies, getGenres, getMovieDetails } from "./api.js";
 import { debounce } from "./utils.js";
 import {
   renderMovies,
@@ -14,6 +14,10 @@ import {
   renderSort,
   appendMovies,
   renderLoadMore,
+  openDetails,
+  renderDetails,
+  renderDetailsError,
+  closeDetails,
 } from "./ui.js";
 
 // Wait this long after the last keystroke before searching
@@ -192,12 +196,60 @@ function handleSortChange() {
   loadMovies();
 }
 
+// ===== Details =====
+// The details request has its own controller: opening a movie shouldn't
+// cancel a list that's loading, and closing the dialog should cancel the
+// details we no longer need.
+let detailsRequest = null;
+
+async function showDetails(movieId) {
+  const movie = results.movies.find((m) => m.id === movieId);
+  if (!movie) return;
+
+  detailsRequest?.abort();
+  const request = new AbortController();
+  detailsRequest = request;
+
+  openDetails(movie);
+  try {
+    renderDetails(await getMovieDetails(movieId, request.signal));
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    renderDetailsError(error);
+  } finally {
+    if (detailsRequest === request) detailsRequest = null;
+  }
+}
+
+// One listener for every card in the grid (event delegation)
+function handleGridClick(event) {
+  const openButton = event.target.closest(".movie-card__open");
+  if (!openButton) return;
+  const card = openButton.closest(".movie-card");
+  showDetails(Number(card.dataset.id));
+}
+
+// Clicks on the dark area outside the dialog land on the <dialog> itself;
+// clicks on its content land on the elements inside
+function handleDialogClick(event) {
+  if (event.target === elements.details) closeDetails();
+}
+
+// Runs however the dialog was closed: ✕, Esc or clicking outside
+function handleDialogClose() {
+  detailsRequest?.abort();
+}
+
 // ===== Init =====
 elements.searchInput.addEventListener("input", searchSoon);
 elements.searchForm.addEventListener("submit", handleSearchSubmit);
 elements.genreList.addEventListener("click", handleGenreClick);
 elements.sortSelect.addEventListener("change", handleSortChange);
 elements.loadMoreBtn.addEventListener("click", loadMoreMovies);
+elements.movieGrid.addEventListener("click", handleGridClick);
+elements.detailsClose.addEventListener("click", closeDetails);
+elements.details.addEventListener("click", handleDialogClick);
+elements.details.addEventListener("close", handleDialogClose);
 // "Try again" repeats the load that failed, with the same state,
 // and fetches the genres too if they failed the first time
 elements.retryBtn.addEventListener("click", () => {

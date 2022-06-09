@@ -2,6 +2,7 @@
 // the DOM; they never fetch anything or change the app's state.
 import { elements } from "./dom.js";
 import { imageUrl, ConfigError, NetworkError, ApiError } from "./api.js";
+import { formatRuntime } from "./utils.js";
 
 // TMDB sends 20 movies per page, so show 20 placeholders while loading
 const SKELETON_COUNT = 20;
@@ -158,4 +159,116 @@ export function renderResultsHeader(title, totalResults) {
   // toLocaleString adds the thousands separators: 10000 -> "10,000"
   elements.resultsCount.textContent =
     `${totalResults.toLocaleString("en-US")} movie${totalResults === 1 ? "" : "s"}`;
+}
+
+// ===== Details dialog =====
+// Set an <img> from a TMDB path, or hide it when there's no image
+function setImage(img, path, size) {
+  const src = imageUrl(path, size);
+  img.hidden = !src;
+  if (src) img.src = src;
+  else img.removeAttribute("src"); // don't leave the previous movie's picture
+}
+
+// "2024 · 2h 46m · ★ 8.2 (12,345 votes)", skipping anything we don't know
+function formatMeta(movie) {
+  const votes = movie.voteCount
+    ? ` (${movie.voteCount.toLocaleString("en-US")} votes)`
+    : "";
+  return [
+    movie.year,
+    movie.runtime && formatRuntime(movie.runtime),
+    movie.rating !== null && `★ ${movie.rating.toFixed(1)}${votes}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function createCastMember(person) {
+  const item = document.createElement("li");
+  item.className = "cast-member";
+
+  // No photo: an empty grey box of the same size keeps the row tidy
+  const photo = document.createElement(person.profilePath ? "img" : "div");
+  photo.className = "cast-member__photo";
+  if (person.profilePath) {
+    photo.src = imageUrl(person.profilePath, "w185");
+    photo.alt = ""; // the name is written right below
+  }
+
+  const name = document.createElement("span");
+  name.className = "cast-member__name";
+  name.textContent = person.name;
+
+  const role = document.createElement("span");
+  role.className = "cast-member__role";
+  role.textContent = person.character;
+
+  item.append(photo, name, role);
+  return item;
+}
+
+// The cast list and its "Top cast" heading are shown or hidden together
+function setCastVisible(isVisible) {
+  elements.detailsCast.hidden = !isVisible;
+  elements.detailsCast.previousElementSibling.hidden = !isVisible;
+}
+
+// Open the dialog straight away with what the card already knows (title,
+// poster, year, rating, overview). The rest fills in when it arrives.
+export function openDetails(movie) {
+  elements.detailsTitle.textContent = movie.title;
+  elements.detailsTagline.hidden = true;
+  elements.detailsMeta.textContent = formatMeta(movie);
+  elements.detailsGenres.replaceChildren();
+  elements.detailsOverview.textContent = movie.overview || "No overview available.";
+  elements.detailsTrailer.hidden = true;
+  setImage(elements.detailsPoster, movie.posterPath, "w342");
+  setImage(elements.detailsBackdrop, null);
+  elements.detailsCast.replaceChildren();
+  setCastVisible(false);
+
+  elements.detailsStatus.textContent = "Loading details…";
+  elements.detailsStatus.hidden = false;
+
+  // showModal() (not show()) gives the backdrop, Esc to close, and keeps
+  // keyboard focus inside the dialog
+  if (!elements.details.open) elements.details.showModal();
+  elements.details.scrollTop = 0;
+}
+
+export function renderDetails(movie) {
+  elements.detailsTitle.textContent = movie.title;
+  elements.detailsTagline.textContent = movie.tagline;
+  elements.detailsTagline.hidden = !movie.tagline;
+  elements.detailsMeta.textContent = formatMeta(movie);
+  elements.detailsOverview.textContent = movie.overview || "No overview available.";
+  setImage(elements.detailsPoster, movie.posterPath, "w342");
+  setImage(elements.detailsBackdrop, movie.backdropPath, "w780");
+
+  elements.detailsGenres.replaceChildren(
+    ...movie.genreNames.map((name) => {
+      const item = document.createElement("li");
+      item.textContent = name;
+      return item;
+    })
+  );
+
+  elements.detailsCast.replaceChildren(...movie.cast.map(createCastMember));
+  setCastVisible(movie.cast.length > 0);
+
+  elements.detailsTrailer.hidden = !movie.trailerUrl;
+  if (movie.trailerUrl) elements.detailsTrailer.href = movie.trailerUrl;
+
+  elements.detailsStatus.hidden = true;
+}
+
+// Keep what's already shown; just explain that the rest didn't load
+export function renderDetailsError(error) {
+  elements.detailsStatus.textContent = `Couldn't load the full details. ${error.message}`;
+  elements.detailsStatus.hidden = false;
+}
+
+export function closeDetails() {
+  elements.details.close();
 }

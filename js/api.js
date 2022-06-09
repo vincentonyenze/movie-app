@@ -118,6 +118,37 @@ function toMovie(raw) {
   };
 }
 
+// One movie with everything the details dialog shows. It starts from the
+// same fields as toMovie(), so it can be used anywhere a movie can.
+function toMovieDetails(raw) {
+  return {
+    ...toMovie(raw),
+    tagline: raw.tagline ?? "",
+    runtime: raw.runtime || null, // minutes; 0 means "unknown"
+    voteCount: raw.vote_count ?? 0,
+    // The list endpoints send genre_ids; details sends full genre objects
+    genreIds: raw.genres?.map((genre) => genre.id) ?? [],
+    genreNames: raw.genres?.map((genre) => genre.name) ?? [],
+    backdropPath: raw.backdrop_path ?? null,
+    cast: (raw.credits?.cast ?? []).slice(0, 12).map((person) => ({
+      id: person.id,
+      name: person.name,
+      character: person.character ?? "",
+      profilePath: person.profile_path ?? null,
+    })),
+    trailerUrl: findTrailerUrl(raw.videos?.results ?? []),
+  };
+}
+
+// The best YouTube trailer: an official one if there is one, otherwise any
+function findTrailerUrl(videos) {
+  const trailers = videos.filter(
+    (video) => video.site === "YouTube" && video.type === "Trailer"
+  );
+  const trailer = trailers.find((video) => video.official) ?? trailers[0];
+  return trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : null;
+}
+
 // A page of results: the movies plus what's needed for "Load more"
 function toPage(data) {
   return {
@@ -169,6 +200,17 @@ export async function discoverMovies(
 
   const data = await tmdbFetch("/discover/movie", params, { signal });
   return toPage(data);
+}
+
+// append_to_response adds the cast and videos to the same answer:
+// one request instead of three
+export async function getMovieDetails(id, signal) {
+  const data = await tmdbFetch(
+    `/movie/${id}`,
+    { append_to_response: "credits,videos" },
+    { signal }
+  );
+  return toMovieDetails(data);
 }
 
 // The list of genres, e.g. [{ id: 28, name: "Action" }, ...]
