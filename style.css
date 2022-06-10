@@ -466,6 +466,17 @@ a {
   color: var(--color-fav);
 }
 
+/* A little "pop" when a heart is filled */
+.movie-card__fav[aria-pressed="true"] span:first-child {
+  animation: heart-pop 0.3s ease-out;
+}
+
+@keyframes heart-pop {
+  50% {
+    transform: scale(1.4);
+  }
+}
+
 /* ===== Skeleton cards (shown while movies load) ===== */
 /* Grey shapes the size of real cards, so the page doesn't jump when data arrives */
 .skeleton {
@@ -514,6 +525,10 @@ a {
   .movie-card__poster,
   .movie-card__fav {
     transition: none;
+  }
+
+  .movie-card__fav[aria-pressed="true"] span:first-child {
+    animation: none;
   }
 }
 

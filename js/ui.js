@@ -7,8 +7,37 @@ import { formatRuntime } from "./utils.js";
 // TMDB sends 20 movies per page, so show 20 placeholders while loading
 const SKELETON_COUNT = 20;
 
+// ===== Favourite buttons =====
+// The ❤️ on a card: a filled heart when it's a favourite. The hidden label
+// says what clicking will do, for screen readers.
+function setCardFavButton(button, isFav) {
+  button.setAttribute("aria-pressed", String(isFav));
+  button.firstElementChild.textContent = isFav ? "♥" : "♡";
+  button.lastElementChild.textContent = isFav ? "Remove from favourites" : "Add to favourites";
+}
+
+function setDetailsFavButton(isFav) {
+  elements.detailsFav.setAttribute("aria-pressed", String(isFav));
+  elements.detailsFav.textContent = isFav ? "♥ In favourites" : "♡ Add to favourites";
+}
+
+// Bring every heart on the page up to date, plus the count in the tab.
+// Called whenever the favourites change (here or in another tab).
+export function renderFavouriteState(favouriteIds) {
+  elements.favCount.textContent = favouriteIds.size;
+
+  elements.movieGrid.querySelectorAll(".movie-card").forEach((card) => {
+    const button = card.querySelector(".movie-card__fav");
+    setCardFavButton(button, favouriteIds.has(Number(card.dataset.id)));
+  });
+
+  if (elements.details.open) {
+    setDetailsFavButton(favouriteIds.has(Number(elements.details.dataset.movieId)));
+  }
+}
+
 // Fill a copy of the <template> from index.html with one movie's data
-function createMovieCard(movie) {
+function createMovieCard(movie, favouriteIds) {
   // cloneNode(true) copies the element and everything inside it
   const fragment = elements.cardTemplate.content.cloneNode(true);
   const card = fragment.querySelector(".movie-card");
@@ -31,19 +60,26 @@ function createMovieCard(movie) {
     card.classList.add("movie-card--no-poster");
   }
 
+  setCardFavButton(card.querySelector(".movie-card__fav"), favouriteIds.has(movie.id));
+
   return fragment;
 }
 
-// Replace everything in the grid with these movies
-export function renderMovies(movies) {
-  elements.movieGrid.replaceChildren(...movies.map(createMovieCard));
+// Replace everything in the grid with these movies.
+// favouriteIds: a Set, so each card knows whether to show a filled heart
+export function renderMovies(movies, favouriteIds) {
+  elements.movieGrid.replaceChildren(
+    ...movies.map((movie) => createMovieCard(movie, favouriteIds))
+  );
   elements.movieGrid.setAttribute("aria-busy", "false");
   hideStatus();
 }
 
 // Add movies to the end of the grid ("Load more"), keeping the ones there
-export function appendMovies(movies) {
-  elements.movieGrid.append(...movies.map(createMovieCard));
+export function appendMovies(movies, favouriteIds) {
+  elements.movieGrid.append(
+    ...movies.map((movie) => createMovieCard(movie, favouriteIds))
+  );
 }
 
 // hasMore: are there pages left? isLoading / failed change the button's text
@@ -216,7 +252,11 @@ function setCastVisible(isVisible) {
 
 // Open the dialog straight away with what the card already knows (title,
 // poster, year, rating, overview). The rest fills in when it arrives.
-export function openDetails(movie) {
+export function openDetails(movie, favouriteIds) {
+  // Remember which movie is open, so its ❤️ button can be updated later
+  elements.details.dataset.movieId = movie.id;
+  setDetailsFavButton(favouriteIds.has(movie.id));
+
   elements.detailsTitle.textContent = movie.title;
   elements.detailsTagline.hidden = true;
   elements.detailsMeta.textContent = formatMeta(movie);

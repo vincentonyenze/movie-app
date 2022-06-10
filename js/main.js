@@ -3,6 +3,7 @@
 import { elements } from "./dom.js";
 import { discoverMovies, searchMovies, getGenres, getMovieDetails } from "./api.js";
 import { debounce } from "./utils.js";
+import { subscribe, getFavouriteIds, toggleFavourite } from "./favourites.js";
 import {
   renderMovies,
   renderResultsHeader,
@@ -18,6 +19,7 @@ import {
   renderDetails,
   renderDetailsError,
   closeDetails,
+  renderFavouriteState,
 } from "./ui.js";
 
 // Wait this long after the last keystroke before searching
@@ -90,7 +92,7 @@ async function loadMovies() {
     if (movies.length === 0) {
       renderEmpty(state.query ? `No movies match “${state.query}”.` : "No movies to show right now.");
     } else {
-      renderMovies(movies);
+      renderMovies(movies, getFavouriteIds());
       renderLoadMore({ hasMore: page < totalPages });
     }
   } catch (error) {
@@ -119,7 +121,7 @@ async function loadMoreMovies() {
       page,
       totalPages,
     });
-    appendMovies(newMovies);
+    appendMovies(newMovies, getFavouriteIds());
     renderLoadMore({ hasMore: page < totalPages });
   } catch (error) {
     if (error.name === "AbortError") return;
@@ -202,6 +204,10 @@ function handleSortChange() {
 // details we no longer need.
 let detailsRequest = null;
 
+// The movie shown in the dialog: first the card's data, then the full
+// details once they arrive. The dialog's ❤️ button saves this one.
+let openMovie = null;
+
 async function showDetails(movieId) {
   const movie = results.movies.find((m) => m.id === movieId);
   if (!movie) return;
@@ -210,9 +216,12 @@ async function showDetails(movieId) {
   const request = new AbortController();
   detailsRequest = request;
 
-  openDetails(movie);
+  openMovie = movie;
+  openDetails(movie, getFavouriteIds());
   try {
-    renderDetails(await getMovieDetails(movieId, request.signal));
+    const details = await getMovieDetails(movieId, request.signal);
+    openMovie = details;
+    renderDetails(details);
   } catch (error) {
     if (error.name === "AbortError") return;
     renderDetailsError(error);
@@ -221,12 +230,23 @@ async function showDetails(movieId) {
   }
 }
 
-// One listener for every card in the grid (event delegation)
+// One listener for every card in the grid (event delegation).
+// Each card has two buttons: ❤️, or the rest of the card to open details.
 function handleGridClick(event) {
-  const openButton = event.target.closest(".movie-card__open");
-  if (!openButton) return;
-  const card = openButton.closest(".movie-card");
-  showDetails(Number(card.dataset.id));
+  const card = event.target.closest(".movie-card");
+  if (!card) return;
+  const movieId = Number(card.dataset.id);
+
+  if (event.target.closest(".movie-card__fav")) {
+    const movie = results.movies.find((m) => m.id === movieId);
+    if (movie) toggleFavourite(movie);
+  } else if (event.target.closest(".movie-card__open")) {
+    showDetails(movieId);
+  }
+}
+
+function handleDetailsFav() {
+  if (openMovie) toggleFavourite(openMovie);
 }
 
 // Clicks on the dark area outside the dialog land on the <dialog> itself;
@@ -238,6 +258,7 @@ function handleDialogClick(event) {
 // Runs however the dialog was closed: ✕, Esc or clicking outside
 function handleDialogClose() {
   detailsRequest?.abort();
+  openMovie = null;
 }
 
 // ===== Init =====
@@ -250,6 +271,7 @@ elements.movieGrid.addEventListener("click", handleGridClick);
 elements.detailsClose.addEventListener("click", closeDetails);
 elements.details.addEventListener("click", handleDialogClick);
 elements.details.addEventListener("close", handleDialogClose);
+elements.detailsFav.addEventListener("click", handleDetailsFav);
 // "Try again" repeats the load that failed, with the same state,
 // and fetches the genres too if they failed the first time
 elements.retryBtn.addEventListener("click", () => {
@@ -260,6 +282,11 @@ elements.retryBtn.addEventListener("click", () => {
 // Browsers sometimes keep a <select>'s old value after a refresh,
 // so make the page match the state before the first load
 renderSort(state.sortBy, false);
+
+// Every change to the favourites (a click here, or another tab) updates
+// the hearts and the count. Draw once now for the saved ones.
+subscribe(() => renderFavouriteState(getFavouriteIds()));
+renderFavouriteState(getFavouriteIds());
 
 // Both start at the same time; neither waits for the other
 loadGenres();
