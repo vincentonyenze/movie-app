@@ -3,7 +3,7 @@
 import { elements } from "./dom.js";
 import { discoverMovies, searchMovies, getGenres, getMovieDetails } from "./api.js";
 import { debounce } from "./utils.js";
-import { subscribe, getFavouriteIds, toggleFavourite } from "./favourites.js";
+import { subscribe, getFavourites, getFavouriteIds, toggleFavourite } from "./favourites.js";
 import {
   renderMovies,
   renderResultsHeader,
@@ -20,6 +20,7 @@ import {
   renderDetailsError,
   closeDetails,
   renderFavouriteState,
+  renderView,
 } from "./ui.js";
 
 // Wait this long after the last keystroke before searching
@@ -37,6 +38,7 @@ const SORT_TITLES = {
 // Searching doesn't mix with genres or sorting: TMDB's search can't
 // filter or sort, so a search clears the genre and ignores the sort.
 const state = {
+  view: "discover", // "discover" (movies from TMDB) or "favourites" (saved ones)
   query: "", // "" means "not searching"
   genreId: null, // a TMDB genre id, or null for all genres
   sortBy: "popularity.desc", // one of the <option> values in index.html
@@ -140,6 +142,81 @@ function getResultsTitle() {
   return [SORT_TITLES[state.sortBy], genre?.name, "movies"].filter(Boolean).join(" ");
 }
 
+// ===== Favourites view =====
+// Favourites are already in the browser, so search, genres and sort all
+// work here without asking TMDB: plain filter() and sort() on an array.
+
+// Movies without a rating or year go to the end, whichever way we sort
+function compareMaybe(a, b, direction) {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return direction === "asc" ? a - b : b - a;
+}
+
+// The same <option> values as Discover. "Most popular" becomes
+// "Recently added", because we don't store popularity.
+const FAVOURITE_SORTS = {
+  "popularity.desc": (a, b) => b.addedAt - a.addedAt,
+  "vote_average.desc": (a, b) => compareMaybe(a.rating, b.rating, "desc"),
+  "primary_release_date.desc": (a, b) => compareMaybe(a.year, b.year, "desc"),
+  "primary_release_date.asc": (a, b) => compareMaybe(a.year, b.year, "asc"),
+};
+
+function getVisibleFavourites() {
+  const query = state.query.toLowerCase();
+  return getFavourites()
+    .filter((movie) => movie.title.toLowerCase().includes(query))
+    .filter((movie) => state.genreId === null || movie.genreIds.includes(state.genreId))
+    .sort(FAVOURITE_SORTS[state.sortBy]); // filter() made a new array, so sorting it is safe
+}
+
+// "Favourites matching “dune”", "Your favourites", "Your Comedy favourites"
+function getFavouritesTitle() {
+  if (state.query) return `Favourites matching “${state.query}”`;
+  const genre = genres.find((g) => g.id === state.genreId);
+  return ["Your", genre?.name, "favourites"].filter(Boolean).join(" ");
+}
+
+function showFavourites() {
+  // A Discover request still on its way must not land on this view
+  currentRequest?.abort();
+
+  const movies = getVisibleFavourites();
+  // The grid's click handlers look movies up in `results`, so favourites go there too
+  Object.assign(results, { movies, page: 0, totalPages: 0 });
+
+  renderResultsHeader(getFavouritesTitle(), movies.length);
+  renderLoadMore({ hasMore: false });
+  if (movies.length > 0) {
+    renderMovies(movies, getFavouriteIds());
+  } else if (getFavourites().length === 0) {
+    renderEmpty("No favourites yet. Tap ♡ on any movie to save it here.");
+  } else {
+    renderEmpty("None of your favourites match these filters.");
+  }
+}
+
+// Show whatever the state asks for: Discover fetches, Favourites doesn't.
+// Search, genres, sort and the tabs all call this.
+function refresh() {
+  if (state.view === "favourites") showFavourites();
+  else loadMovies();
+}
+
+function handleTabClick(event) {
+  const view = event.currentTarget.dataset.view;
+  if (view === state.view) return;
+
+  // A search is for one place, so it's cleared. Genre and sort are kept.
+  state.view = view;
+  state.query = "";
+  elements.searchInput.value = "";
+  renderView(view);
+  renderSort(state.sortBy, state.view, false);
+  refresh();
+}
+
 // The genre chips are a nice extra: if they fail to load, the movies
 // still work, so log the problem instead of showing an error
 async function loadGenres() {
@@ -162,8 +239,8 @@ function search() {
     state.genreId = null;
     renderSelectedGenre(null);
   }
-  renderSort(state.sortBy, query !== "");
-  loadMovies();
+  renderSort(state.sortBy, state.view, query !== "");
+  refresh();
 }
 
 const searchSoon = debounce(search, SEARCH_DELAY_MS);
@@ -188,14 +265,14 @@ function handleGenreClick(event) {
   state.query = "";
   elements.searchInput.value = "";
   renderSelectedGenre(genreId);
-  renderSort(state.sortBy, false);
-  loadMovies();
+  renderSort(state.sortBy, state.view, false);
+  refresh();
 }
 
 // ===== Sort =====
 function handleSortChange() {
   state.sortBy = elements.sortSelect.value;
-  loadMovies();
+  refresh();
 }
 
 // ===== Details =====
@@ -272,22 +349,28 @@ elements.detailsClose.addEventListener("click", closeDetails);
 elements.details.addEventListener("click", handleDialogClick);
 elements.details.addEventListener("close", handleDialogClose);
 elements.detailsFav.addEventListener("click", handleDetailsFav);
+elements.tabButtons.forEach((button) => button.addEventListener("click", handleTabClick));
 // "Try again" repeats the load that failed, with the same state,
 // and fetches the genres too if they failed the first time
 elements.retryBtn.addEventListener("click", () => {
   if (genres.length === 0) loadGenres();
-  loadMovies();
+  refresh();
 });
 
 // Browsers sometimes keep a <select>'s old value after a refresh,
 // so make the page match the state before the first load
-renderSort(state.sortBy, false);
+renderView(state.view);
+renderSort(state.sortBy, state.view, false);
 
 // Every change to the favourites (a click here, or another tab) updates
-// the hearts and the count. Draw once now for the saved ones.
-subscribe(() => renderFavouriteState(getFavouriteIds()));
+// the hearts and the count. On the Favourites view the list itself
+// changes too: an un-hearted movie leaves it.
+subscribe(() => {
+  renderFavouriteState(getFavouriteIds());
+  if (state.view === "favourites") showFavourites();
+});
 renderFavouriteState(getFavouriteIds());
 
 // Both start at the same time; neither waits for the other
 loadGenres();
-loadMovies();
+refresh();

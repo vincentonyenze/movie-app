@@ -182,11 +182,25 @@ export function renderSelectedGenre(genreId) {
   });
 }
 
-// TMDB's search can't sort, so the dropdown is switched off while searching
-export function renderSort(sortBy, isSearching) {
+// TMDB's search can't sort, so the dropdown is switched off while
+// searching Discover. Favourites are sorted in the browser, so it always works there.
+export function renderSort(sortBy, view, isSearching) {
+  const isDisabled = view === "discover" && isSearching;
   elements.sortSelect.value = sortBy;
-  elements.sortSelect.disabled = isSearching;
-  elements.sortSelect.title = isSearching ? "Sorting isn't available for search results" : "";
+  elements.sortSelect.disabled = isDisabled;
+  elements.sortSelect.title = isDisabled ? "Sorting isn't available for search results" : "";
+  // We don't save popularity with favourites, so that option sorts by date added
+  elements.sortSelect.options[0].textContent =
+    view === "favourites" ? "Recently added" : "Most popular";
+}
+
+// Highlight the tab for the current view, and match the search box's hint
+export function renderView(view) {
+  elements.tabButtons.forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.view === view));
+  });
+  elements.searchInput.placeholder =
+    view === "favourites" ? "Search your favourites…" : "Search movies…";
 }
 
 // The heading above the grid, e.g. "Popular movies" and "10,000 movies"
