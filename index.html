@@ -8,6 +8,9 @@
   <script type="module" src="js/main.js"></script>
 </head>
 <body>
+  <!-- The first thing a keyboard user reaches: jump past the header and filters -->
+  <a href="#results-title" class="skip-link">Skip to movies</a>
+
   <header class="site-header">
     <div class="site-header__inner container">
       <a href="./" class="logo">🎬 <span>Movie</span>Discovery</a>
@@ -23,7 +26,8 @@
       <form id="search-form" class="search" role="search">
         <label for="search-input" class="visually-hidden">Search movies</label>
         <input type="search" id="search-input" class="search__input"
-               placeholder="Search movies…" autocomplete="off">
+               placeholder="Search movies…" autocomplete="off"
+               aria-keyshortcuts="/">
       </form>
     </div>
   </header>
@@ -45,7 +49,8 @@
     </section>
 
     <div class="results-header">
-      <h1 id="results-title" class="results-header__title">Popular movies</h1>
+      <!-- tabindex="-1": not in the Tab order, but JavaScript (and the skip link) can focus it -->
+      <h1 id="results-title" class="results-header__title" tabindex="-1">Popular movies</h1>
       <p id="results-count" class="results-header__count" aria-live="polite"></p>
     </div>
 

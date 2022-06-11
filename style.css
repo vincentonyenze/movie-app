@@ -103,6 +103,29 @@ a {
   white-space: nowrap;
 }
 
+/* Off screen until a keyboard user tabs to it, then it slides into view */
+.skip-link {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-small);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 600;
+  transform: translateY(-150%);
+}
+
+.skip-link:focus {
+  transform: none;
+}
+
+/* Headings focused by JavaScript don't need a ring around the whole line */
+.results-header__title:focus {
+  outline: none;
+}
+
 /* [hidden] must win even over classes that set display */
 [hidden] {
   display: none !important;

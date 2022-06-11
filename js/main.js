@@ -21,6 +21,9 @@ import {
   closeDetails,
   renderFavouriteState,
   renderView,
+  focusMovie,
+  focusFavButtonAt,
+  focusResultsTitle,
 } from "./ui.js";
 
 // Wait this long after the last keystroke before searching
@@ -316,7 +319,13 @@ function handleGridClick(event) {
 
   if (event.target.closest(".movie-card__fav")) {
     const movie = results.movies.find((m) => m.id === movieId);
-    if (movie) toggleFavourite(movie);
+    if (!movie) return;
+
+    // On the Favourites view, un-hearting removes the card (and the button
+    // you just pressed). Keep focus at the same spot in the list.
+    const index = [...elements.movieGrid.children].indexOf(card);
+    toggleFavourite(movie);
+    if (state.view === "favourites") focusFavButtonAt(index);
   } else if (event.target.closest(".movie-card__open")) {
     showDetails(movieId);
   }
@@ -336,6 +345,24 @@ function handleDialogClick(event) {
 function handleDialogClose() {
   detailsRequest?.abort();
   openMovie = null;
+
+  // The browser puts focus back on the card that opened the dialog. But if
+  // that card is gone (un-hearted inside the dialog on the Favourites
+  // view), focus the results heading instead of losing it.
+  if (!focusMovie(Number(elements.details.dataset.movieId))) {
+    focusResultsTitle();
+  }
+}
+
+// Press "/" anywhere to jump to the search box (like YouTube and GitHub)
+function handleShortcut(event) {
+  if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey) return;
+  // Typing "/" in a text field should still type it
+  if (event.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (elements.details.open) return;
+
+  event.preventDefault(); // don't type the "/" into the search box
+  elements.searchInput.focus();
 }
 
 // ===== Init =====
@@ -350,6 +377,7 @@ elements.details.addEventListener("click", handleDialogClick);
 elements.details.addEventListener("close", handleDialogClose);
 elements.detailsFav.addEventListener("click", handleDetailsFav);
 elements.tabButtons.forEach((button) => button.addEventListener("click", handleTabClick));
+document.addEventListener("keydown", handleShortcut);
 // "Try again" repeats the load that failed, with the same state,
 // and fetches the genres too if they failed the first time
 elements.retryBtn.addEventListener("click", () => {

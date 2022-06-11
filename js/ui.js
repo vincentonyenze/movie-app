@@ -7,6 +7,20 @@ import { formatRuntime } from "./utils.js";
 // TMDB sends 20 movies per page, so show 20 placeholders while loading
 const SKELETON_COUNT = 20;
 
+// Roughly the first row on a big screen: load these posters straight away,
+// and the rest only when they're about to scroll into view
+const EAGER_POSTERS = 6;
+
+// How wide a poster is shown, so the browser can pick the right file:
+// about half the screen on phones, about 200px in the desktop grid
+const POSTER_SIZES = "(max-width: 700px) 45vw, 200px";
+
+// "a.jpg" -> "…/w185/a.jpg 185w, …/w342/a.jpg 342w, …"
+// The "185w" tells the browser how many pixels wide each file is.
+function buildSrcset(path, widths) {
+  return widths.map((width) => `${imageUrl(path, `w${width}`)} ${width}w`).join(", ");
+}
+
 // ===== Favourite buttons =====
 // The ❤️ on a card: a filled heart when it's a favourite. The hidden label
 // says what clicking will do, for screen readers.
@@ -36,8 +50,9 @@ export function renderFavouriteState(favouriteIds) {
   }
 }
 
-// Fill a copy of the <template> from index.html with one movie's data
-function createMovieCard(movie, favouriteIds) {
+// Fill a copy of the <template> from index.html with one movie's data.
+// index: the card's position, so only the first few posters load eagerly
+function createMovieCard(movie, favouriteIds, index = Infinity) {
   // cloneNode(true) copies the element and everything inside it
   const fragment = elements.cardTemplate.content.cloneNode(true);
   const card = fragment.querySelector(".movie-card");
@@ -45,13 +60,29 @@ function createMovieCard(movie, favouriteIds) {
 
   card.querySelector(".movie-card__title").textContent = movie.title;
   card.querySelector(".movie-card__year").textContent = movie.year ?? "";
-  card.querySelector(".movie-card__rating").textContent =
-    movie.rating !== null ? `★ ${movie.rating.toFixed(1)}` : "";
+
+  // On screen: "★ 8.2". A screen reader would say "black star 8.2", so it
+  // hears hidden text instead: "rated 8.2 out of 10".
+  if (movie.rating !== null) {
+    const rating = card.querySelector(".movie-card__rating");
+    rating.textContent = `★ ${movie.rating.toFixed(1)}`;
+    rating.setAttribute("aria-hidden", "true");
+
+    const spoken = document.createElement("span");
+    spoken.className = "visually-hidden";
+    spoken.textContent = `, rated ${movie.rating.toFixed(1)} out of 10`;
+    rating.after(spoken);
+  }
 
   const poster = card.querySelector(".movie-card__poster");
   const posterSrc = imageUrl(movie.posterPath);
   if (posterSrc) {
-    poster.src = posterSrc;
+    // Phones get the small file, big or high-resolution screens a bigger one
+    poster.srcset = buildSrcset(movie.posterPath, [185, 342, 500]);
+    poster.sizes = POSTER_SIZES;
+    poster.src = posterSrc; // for browsers that don't understand srcset
+    poster.loading = index < EAGER_POSTERS ? "eager" : "lazy";
+    poster.decoding = "async";
     // A broken image link gets the same placeholder as a missing poster
     poster.addEventListener("error", () => {
       card.classList.add("movie-card--no-poster");
@@ -69,17 +100,44 @@ function createMovieCard(movie, favouriteIds) {
 // favouriteIds: a Set, so each card knows whether to show a filled heart
 export function renderMovies(movies, favouriteIds) {
   elements.movieGrid.replaceChildren(
-    ...movies.map((movie) => createMovieCard(movie, favouriteIds))
+    ...movies.map((movie, index) => createMovieCard(movie, favouriteIds, index))
   );
   elements.movieGrid.setAttribute("aria-busy", "false");
   hideStatus();
 }
 
 // Add movies to the end of the grid ("Load more"), keeping the ones there
+// Keyboard users would otherwise be left on the "Load more" button, so
+// focus moves to the first new movie and they carry on from there.
 export function appendMovies(movies, favouriteIds) {
-  elements.movieGrid.append(
-    ...movies.map((movie) => createMovieCard(movie, favouriteIds))
-  );
+  const cards = movies.map((movie) => createMovieCard(movie, favouriteIds));
+  const firstNewButton = cards[0]?.querySelector(".movie-card__open");
+  elements.movieGrid.append(...cards);
+  firstNewButton?.focus();
+}
+
+// ===== Focus =====
+// When the element that had focus disappears (a card removed from the
+// Favourites list), focus falls back to <body> and keyboard users have to
+// start again from the top. These put it somewhere sensible instead.
+
+// The card's main button, or false if that movie isn't on screen
+export function focusMovie(movieId) {
+  const card = elements.movieGrid.querySelector(`.movie-card[data-id="${movieId}"]`);
+  card?.querySelector(".movie-card__open").focus();
+  return Boolean(card);
+}
+
+// The ❤️ button now at this position (the next movie took the removed
+// one's place), or the heading if the list is empty
+export function focusFavButtonAt(index) {
+  const buttons = elements.movieGrid.querySelectorAll(".movie-card__fav");
+  const button = buttons[Math.min(index, buttons.length - 1)];
+  (button ?? elements.resultsTitle).focus();
+}
+
+export function focusResultsTitle() {
+  elements.resultsTitle.focus();
 }
 
 // hasMore: are there pages left? isLoading / failed change the button's text
@@ -213,11 +271,22 @@ export function renderResultsHeader(title, totalResults) {
 
 // ===== Details dialog =====
 // Set an <img> from a TMDB path, or hide it when there's no image
-function setImage(img, path, size) {
+// widths: optional, e.g. [780, 1280], to let the browser choose a file size
+function setImage(img, path, size, { widths, sizes } = {}) {
   const src = imageUrl(path, size);
   img.hidden = !src;
-  if (src) img.src = src;
-  else img.removeAttribute("src"); // don't leave the previous movie's picture
+  if (!src) {
+    // Don't leave the previous movie's picture. srcset must go too:
+    // when it's there, the browser ignores src.
+    img.removeAttribute("src");
+    img.removeAttribute("srcset");
+    return;
+  }
+  if (widths) {
+    img.srcset = buildSrcset(path, widths);
+    img.sizes = sizes;
+  }
+  img.src = src;
 }
 
 // "2024 · 2h 46m · ★ 8.2 (12,345 votes)", skipping anything we don't know
@@ -244,6 +313,9 @@ function createCastMember(person) {
   if (person.profilePath) {
     photo.src = imageUrl(person.profilePath, "w185");
     photo.alt = ""; // the name is written right below
+    // Most of the cast row is scrolled out of sight at first
+    photo.loading = "lazy";
+    photo.decoding = "async";
   }
 
   const name = document.createElement("span");
@@ -298,7 +370,11 @@ export function renderDetails(movie) {
   elements.detailsMeta.textContent = formatMeta(movie);
   elements.detailsOverview.textContent = movie.overview || "No overview available.";
   setImage(elements.detailsPoster, movie.posterPath, "w342");
-  setImage(elements.detailsBackdrop, movie.backdropPath, "w780");
+  // Full screen width on phones, the dialog's 900px on bigger screens
+  setImage(elements.detailsBackdrop, movie.backdropPath, "w780", {
+    widths: [780, 1280],
+    sizes: "(max-width: 700px) 100vw, 900px",
+  });
 
   elements.detailsGenres.replaceChildren(
     ...movie.genreNames.map((name) => {
